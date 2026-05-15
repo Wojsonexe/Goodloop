@@ -1,4 +1,4 @@
-package com.example.goodloop
+package pl.goodloop.app
 
 import io.flutter.embedding.android.FlutterActivity
 
