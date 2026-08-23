@@ -14,40 +14,28 @@ class SettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
-  TimeOfDay? _notificationTime;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadNotificationTime();
-  }
-
-  Future<void> _loadNotificationTime() async {
-    final time = await NotificationService().getScheduledTime();
-    setState(() {
-      _notificationTime = TimeOfDay(
-        hour: time['hour']!,
-        minute: time['minute']!,
-      );
-    });
-  }
-
-  Future<void> _pickNotificationTime() async {
+  Future<void> _pickNotificationTime(NotificationTime current) async {
     final time = await showTimePicker(
       context: context,
-      initialTime: _notificationTime ?? const TimeOfDay(hour: 9, minute: 0),
+      initialTime: TimeOfDay(hour: current.hour, minute: current.minute),
     );
 
-    if (time != null) {
-      await NotificationService().scheduleDailyNotification(
-        time.hour,
-        time.minute,
-      );
-      setState(() => _notificationTime = time);
+    if (time == null) return;
+
+    try {
+      await ref
+          .read(notificationSettingsProvider.notifier)
+          .schedule(time.hour, time.minute);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Notification time updated!')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not update notification time: $e')),
         );
       }
     }
@@ -56,6 +44,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final themeMode = ref.watch(themeModeProvider);
+    final notificationTime = ref.watch(notificationSettingsProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
@@ -69,13 +58,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ListTile(
                 leading: const Icon(Icons.notifications_active),
                 title: const Text('Daily Reminder'),
-                subtitle: Text(
-                  _notificationTime != null
-                      ? 'Every day at ${_notificationTime!.format(context)}'
-                      : 'Not set',
+                subtitle: notificationTime.when(
+                  data: (time) => Text(
+                    'Every day at ${TimeOfDay(hour: time.hour, minute: time.minute).format(context)}',
+                  ),
+                  loading: () => const Text('Loading...'),
+                  error: (_, __) => const Text('Not set'),
                 ),
                 trailing: const Icon(Icons.chevron_right),
-                onTap: _pickNotificationTime,
+                onTap: () => _pickNotificationTime(
+                  notificationTime.valueOrNull ??
+                      const NotificationTime(hour: 9, minute: 0),
+                ),
               ),
             ],
           ),
