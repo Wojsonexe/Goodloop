@@ -6,25 +6,49 @@ class TaskRepository {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   Stream<List<TaskModel>> getGlobalDailyTasks() {
-    return _firestore.collection('dailyTasks').snapshots().map((snapshot) {
-      return snapshot.docs.map((doc) {
-        final data = doc.data();
-
-        return TaskModel(
-          id: doc.id,
-          userId: 'global',
-          title: data['text'] ?? data['title'] ?? 'Zadanie dnia',
-          description: data['description'] ?? 'Wykonaj dzisiejsze wyzwanie!',
-          category: TaskCategory.values.firstWhere(
-            (e) => e.name == (data['category'] ?? 'other'),
-            orElse: () => TaskCategory.other,
-          ),
-          points: ((data['difficulty'] ?? 1) as num).toInt() * 10,
-          createdAt: DateTime.now(),
-          isCompleted: false,
-        );
-      }).toList();
+    return _firestore.collection('global_tasks').snapshots().map((snapshot) {
+      return snapshot.docs
+          .map((doc) => parseGlobalTask(doc.id, doc.data()))
+          .whereType<TaskModel>()
+          .toList();
     });
+  }
+
+  /// Pure mapping of a `global_tasks` document into a [TaskModel].
+  ///
+  /// Kept free of any Firestore dependency so it can be unit tested with
+  /// plain maps. Returns null for tasks marked `isActive: false` — those
+  /// should not reach the user.
+  static TaskModel? parseGlobalTask(String id, Map<String, dynamic> data) {
+    final isActiveRaw = data['isActive'];
+    final isActive = isActiveRaw is bool ? isActiveRaw : true;
+    if (!isActive) return null;
+
+    final pointsRaw = data['points'];
+    final points = pointsRaw is num ? pointsRaw.toInt() : 10;
+
+    final difficultyRaw = data['difficulty'];
+    final difficulty = difficultyRaw is String ? difficultyRaw : null;
+
+    final categoryRaw = data['category'];
+    final categoryName = categoryRaw is String ? categoryRaw : 'other';
+
+    return TaskModel(
+      id: id,
+      userId: 'global',
+      title: data['text'] ?? data['title'] ?? 'Zadanie dnia',
+      description: data['description'] ?? 'Wykonaj dzisiejsze wyzwanie!',
+      category: TaskCategory.values.firstWhere(
+        (e) => e.name == categoryName,
+        orElse: () => TaskCategory.other,
+      ),
+      difficulty: difficulty,
+      points: points,
+      createdAt: data['createdAt'] is Timestamp
+          ? (data['createdAt'] as Timestamp).toDate()
+          : DateTime.now(),
+      isCompleted: false,
+    );
   }
 
   Future<void> completeGlobalTask(
