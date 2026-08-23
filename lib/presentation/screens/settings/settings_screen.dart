@@ -4,7 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:goodloop/core/constants/app_colors.dart';
 import 'package:goodloop/domain/providers/auth_provider.dart';
 import 'package:goodloop/domain/providers/theme_provider.dart';
-import '../../../domain/providers/notification_service.dart';
+import 'package:goodloop/core/notifications/notification_service.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -14,6 +14,24 @@ class SettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  Future<void> _sendTestNotification() async {
+    try {
+      await ref.read(notificationServiceProvider).showTestNotification();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Wysłano testowe powiadomienie')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Nie udało się wysłać powiadomienia: $e')),
+        );
+      }
+    }
+  }
+
   Future<void> _pickNotificationTime(NotificationTime current) async {
     final time = await showTimePicker(
       context: context,
@@ -55,6 +73,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             context,
             title: 'Notifications',
             children: [
+              ListTile(
+                leading: const Icon(Icons.notifications_none),
+                title: const Text('Test powiadomienia'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: _sendTestNotification,
+              ),
               ListTile(
                 leading: const Icon(Icons.notifications_active),
                 title: const Text('Daily Reminder'),
