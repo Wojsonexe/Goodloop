@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-enum TaskCategory { environment, social, personal, community, family, other }
+enum TaskCategory { kindness, health, sport, learning, other }
 
 class TaskModel {
   final String id;
@@ -14,6 +14,7 @@ class TaskModel {
   final DateTime? completedAt;
   final DateTime? dueDate;
   final String? imageUrl;
+  final String? difficulty;
 
   TaskModel({
     required this.id,
@@ -27,6 +28,7 @@ class TaskModel {
     this.completedAt,
     this.dueDate,
     this.imageUrl,
+    this.difficulty,
   });
 
   factory TaskModel.fromMap(Map<String, dynamic> map, String id) {
@@ -42,6 +44,7 @@ class TaskModel {
       completedAt: _parseTimestamp(map['completedAt']),
       dueDate: _parseTimestamp(map['dueDate']),
       imageUrl: map['imageUrl'] as String?,
+      difficulty: map['difficulty'] as String?,
     );
   }
 
@@ -58,6 +61,7 @@ class TaskModel {
           completedAt != null ? Timestamp.fromDate(completedAt!) : null,
       'dueDate': dueDate != null ? Timestamp.fromDate(dueDate!) : null,
       'imageUrl': imageUrl,
+      'difficulty': difficulty,
     };
   }
 
@@ -73,6 +77,7 @@ class TaskModel {
     DateTime? completedAt,
     DateTime? dueDate,
     String? imageUrl,
+    String? difficulty,
   }) {
     return TaskModel(
       id: id ?? this.id,
@@ -86,6 +91,7 @@ class TaskModel {
       completedAt: completedAt ?? this.completedAt,
       dueDate: dueDate ?? this.dueDate,
       imageUrl: imageUrl ?? this.imageUrl,
+      difficulty: difficulty ?? this.difficulty,
     );
   }
 
@@ -112,16 +118,14 @@ class TaskModel {
   // Pomocnicze gettery
   String get categoryDisplayName {
     switch (category) {
-      case TaskCategory.environment:
-        return 'Środowisko';
-      case TaskCategory.social:
-        return 'Społeczne';
-      case TaskCategory.personal:
-        return 'Osobiste';
-      case TaskCategory.community:
-        return 'Społeczność';
-      case TaskCategory.family:
-        return 'Rodzina';
+      case TaskCategory.kindness:
+        return 'Życzliwość';
+      case TaskCategory.health:
+        return 'Zdrowie';
+      case TaskCategory.sport:
+        return 'Sport';
+      case TaskCategory.learning:
+        return 'Nauka';
       case TaskCategory.other:
         return 'Inne';
     }
