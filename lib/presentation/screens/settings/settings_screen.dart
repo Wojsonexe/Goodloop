@@ -4,7 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:goodloop/core/constants/app_colors.dart';
 import 'package:goodloop/domain/providers/auth_provider.dart';
 import 'package:goodloop/domain/providers/theme_provider.dart';
-import '../../../domain/providers/notification_service.dart';
+import 'package:goodloop/core/notifications/notification_service.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -14,48 +14,104 @@ class SettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
-  TimeOfDay? _notificationTime;
+  Future<void> _sendTestNotification() async {
+    try {
+      await ref.read(notificationServiceProvider).showTestNotification();
 
-  @override
-  void initState() {
-    super.initState();
-    _loadNotificationTime();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Wysłano testowe powiadomienie')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Nie udało się wysłać powiadomienia: $e')),
+        );
+      }
+    }
   }
 
-  Future<void> _loadNotificationTime() async {
-    final time = await NotificationService().getScheduledTime();
-    setState(() {
-      _notificationTime = TimeOfDay(
-        hour: time['hour']!,
-        minute: time['minute']!,
-      );
-    });
-  }
-
-  Future<void> _pickNotificationTime() async {
+  Future<void> _pickNotificationTime(NotificationTime current) async {
     final time = await showTimePicker(
       context: context,
-      initialTime: _notificationTime ?? const TimeOfDay(hour: 9, minute: 0),
+      initialTime: TimeOfDay(hour: current.hour, minute: current.minute),
     );
 
-    if (time != null) {
-      await NotificationService().scheduleDailyNotification(
-        time.hour,
-        time.minute,
-      );
-      setState(() => _notificationTime = time);
+    if (time == null) return;
+    if (!await _ensureExactAlarmPermission()) return;
+
+    try {
+      await ref
+          .read(notificationSettingsProvider.notifier)
+          .schedule(time.hour, time.minute);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Notification time updated!')),
         );
       }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not update notification time: $e')),
+        );
+      }
     }
+  }
+
+  /// Returns true once exact-alarm permission is confirmed granted.
+  ///
+  /// Never opens system settings without first explaining why — shows an
+  /// explanation dialog, and only navigates to settings if the user agrees.
+  /// Returns false (without scheduling anything) if the user declines, or
+  /// if they return from settings without having granted it.
+  Future<bool> _ensureExactAlarmPermission() async {
+    final service = ref.read(notificationServiceProvider);
+    if (await service.canScheduleExactAlarms()) return true;
+
+    if (!mounted) return false;
+    final shouldOpenSettings = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Potrzebne uprawnienie'),
+        content: const Text(
+          'Aby GoodLoop mógł przypominać Ci dokładnie o wybranej godzinie, '
+          'potrzebuje uprawnienia "Alarmy i przypomnienia" z ustawień systemowych. '
+          'Bez niego przypomnienie może nie przyjść o czasie.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Anuluj'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Otwórz ustawienia'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldOpenSettings != true) return false;
+
+    final granted = await service.requestExactAlarmPermission();
+    if (!granted && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Bez tego uprawnienia przypomnienie może nie przyjść o czasie.',
+          ),
+        ),
+      );
+    }
+    return granted;
   }
 
   @override
   Widget build(BuildContext context) {
     final themeMode = ref.watch(themeModeProvider);
+    final notificationTime = ref.watch(notificationSettingsProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
@@ -67,15 +123,26 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             title: 'Notifications',
             children: [
               ListTile(
+                leading: const Icon(Icons.notifications_none),
+                title: const Text('Test powiadomienia'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: _sendTestNotification,
+              ),
+              ListTile(
                 leading: const Icon(Icons.notifications_active),
                 title: const Text('Daily Reminder'),
-                subtitle: Text(
-                  _notificationTime != null
-                      ? 'Every day at ${_notificationTime!.format(context)}'
-                      : 'Not set',
+                subtitle: notificationTime.when(
+                  data: (time) => Text(
+                    'Every day at ${TimeOfDay(hour: time.hour, minute: time.minute).format(context)}',
+                  ),
+                  loading: () => const Text('Loading...'),
+                  error: (_, __) => const Text('Not set'),
                 ),
                 trailing: const Icon(Icons.chevron_right),
-                onTap: _pickNotificationTime,
+                onTap: () => _pickNotificationTime(
+                  notificationTime.valueOrNull ??
+                      const NotificationTime(hour: 9, minute: 0),
+                ),
               ),
             ],
           ),
