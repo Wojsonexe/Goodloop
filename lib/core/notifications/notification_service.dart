@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -11,6 +12,19 @@ part 'notification_service.g.dart';
 
 const _kDailyReminderId = 1;
 const _kTestNotificationId = 99;
+
+/// Jak faktycznie udało się zaplanować przypomnienie.
+enum ReminderScheduleOutcome {
+  /// Nie zaplanowano — serwis nie był zainicjalizowany.
+  notInitialized,
+
+  /// Alarm dokładny — przyjdzie o wybranej minucie.
+  exact,
+
+  /// Alarm niedokładny — brak uprawnienia SCHEDULE_EXACT_ALARM.
+  /// Przyjdzie, ale może z opóźnieniem (okno serwisowe / Doze).
+  inexact,
+}
 
 class NotificationTime {
   const NotificationTime({required this.hour, required this.minute});
@@ -85,7 +99,18 @@ class NotificationService {
     final enabled = await isEnabled();
     if (enabled) {
       final time = await getScheduledTime();
-      await scheduleDailyReminder(hour: time.hour, minute: time.minute);
+      try {
+        final outcome = await scheduleDailyReminder(
+          hour: time.hour,
+          minute: time.minute,
+        );
+        debugPrint('[Notifications] Re-armed on startup: $outcome');
+      } catch (e) {
+        // scheduleDailyReminder sam degraduje do alarmu niedokładnego, gdy
+        // brakuje uprawnienia exact-alarm; cokolwiek tu doleci to realnie
+        // nieoczekiwany błąd i nie może wywrócić startu aplikacji.
+        debugPrint('[Notifications] Could not re-arm reminder on startup: $e');
+      }
     }
   }
 
@@ -115,29 +140,16 @@ class NotificationService {
     await prefs.setBool(_prefsEnabledKey, false);
   }
 
-  Future<void> scheduleDailyReminder({
+  Future<ReminderScheduleOutcome> scheduleDailyReminder({
     int hour = 20,
     int minute = 0,
   }) async {
-    if (!_initialized) return;
+    if (!_initialized) return ReminderScheduleOutcome.notInitialized;
 
     await _persist(hour, minute);
     await _plugin.cancel(_kDailyReminderId);
 
-    final now = tz.TZDateTime.now(tz.local);
-    var scheduled = tz.TZDateTime(
-      tz.local,
-      now.year,
-      now.month,
-      now.day,
-      hour,
-      minute,
-    );
-
-    if (scheduled.isBefore(now)) {
-      scheduled = scheduled.add(const Duration(days: 1));
-    }
-
+    final scheduled = _nextInstanceOf(hour, minute);
     debugPrint('[Notifications] Scheduling for: $scheduled');
 
     const androidDetails = AndroidNotificationDetails(
@@ -150,42 +162,99 @@ class NotificationService {
       enableVibration: true,
       showWhen: true,
     );
+    const details = NotificationDetails(
+      android: androidDetails,
+      iOS: DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+      ),
+    );
 
-    // Spróbuj exact — jeśli brak uprawnienia (SCHEDULE_EXACT_ALARM), spadnij na inexact.
+    const title = '💝 Czas na dobry uczynek!';
+    const body =
+        'Twoje dzisiejsze zadanie czeka — zrób coś dobrego i zdobądź punkty.';
+
+    // Preferuj alarm dokładny — przypomnienie „o 20:00” ma przyjść o 20:00.
+    // Gdy brakuje SCHEDULE_EXACT_ALARM (Android 12+, domyślnie odrzucone na
+    // 14+), plugin rzuca PlatformException: schodzimy wtedy na alarm
+    // niedokładny (spóźnione przypomnienie > brak przypomnienia) i zwracamy
+    // wołającemu, w jakim trybie się udało, by UI mógł zasugerować włączenie
+    // uprawnienia.
     try {
       await _plugin.zonedSchedule(
         _kDailyReminderId,
-        '💝 Czas na dobry uczynek!',
-        'Twoje dzisiejsze zadanie czeka — zrób coś dobrego i zdobądź punkty.',
+        title,
+        body,
         scheduled,
-        const NotificationDetails(
-          android: androidDetails,
-          iOS: DarwinNotificationDetails(
-            presentAlert: true,
-            presentBadge: true,
-            presentSound: true,
-          ),
-        ),
+        details,
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
         uiLocalNotificationDateInterpretation:
             UILocalNotificationDateInterpretation.absoluteTime,
         matchDateTimeComponents: DateTimeComponents.time,
       );
       debugPrint('[Notifications] ✅ Exact alarm scheduled at $hour:$minute');
-    } catch (e) {
-      debugPrint('[Notifications] Exact alarm failed, using inexact: $e');
+      return ReminderScheduleOutcome.exact;
+    } on PlatformException catch (e) {
+      debugPrint(
+          '[Notifications] Exact alarm denied ($e) — falling back to inexact');
       await _plugin.zonedSchedule(
         _kDailyReminderId,
-        '💝 Czas na dobry uczynek!',
-        'Twoje dzisiejsze zadanie czeka — zrób coś dobrego i zdobądź punkty.',
+        title,
+        body,
         scheduled,
-        const NotificationDetails(android: androidDetails),
+        details,
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
         uiLocalNotificationDateInterpretation:
             UILocalNotificationDateInterpretation.absoluteTime,
         matchDateTimeComponents: DateTimeComponents.time,
       );
       debugPrint('[Notifications] ✅ Inexact alarm scheduled at $hour:$minute');
+      return ReminderScheduleOutcome.inexact;
+    }
+  }
+
+  /// Najbliższe wystąpienie [hour]:[minute] w strefie czasowej urządzenia.
+  /// Jeśli ten moment już minął (lub jest teraz) — przechodzi na jutro.
+  tz.TZDateTime _nextInstanceOf(int hour, int minute) {
+    final now = tz.TZDateTime.now(tz.local);
+    var scheduled =
+        tz.TZDateTime(tz.local, now.year, now.month, now.day, hour, minute);
+    if (!scheduled.isAfter(now)) {
+      scheduled = scheduled.add(const Duration(days: 1));
+    }
+    return scheduled;
+  }
+
+  /// Whether the app currently has permission to schedule exact alarms
+  /// (Android 12+). Always true on platforms/API levels that don't require
+  /// this permission at all.
+  Future<bool> canScheduleExactAlarms() async {
+    final androidPlugin = _plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    if (androidPlugin == null) return true;
+    try {
+      return await androidPlugin.canScheduleExactNotifications() ?? false;
+    } catch (e) {
+      debugPrint('[Notifications] canScheduleExactAlarms check failed: $e');
+      return false;
+    }
+  }
+
+  /// Sends the user to the system "Alarms & reminders" settings screen and
+  /// waits for them to return, resolving with whether the permission is
+  /// now granted. Callers are responsible for explaining *why* first (see
+  /// settings_screen.dart) — this method itself does not show any UI other
+  /// than the system settings screen.
+  Future<bool> requestExactAlarmPermission() async {
+    final androidPlugin = _plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    if (androidPlugin == null) return true;
+    try {
+      return await androidPlugin.requestExactAlarmsPermission() ?? false;
+    } catch (e) {
+      debugPrint('[Notifications] requestExactAlarmPermission failed: $e');
+      return false;
     }
   }
 
@@ -244,9 +313,11 @@ class NotificationSettings extends _$NotificationSettings {
   Future<NotificationTime> build() =>
       ref.watch(notificationServiceProvider).getScheduledTime();
 
-  Future<void> schedule(int hour, int minute) async {
+  Future<ReminderScheduleOutcome> schedule(int hour, int minute) async {
     final service = ref.read(notificationServiceProvider);
-    await service.scheduleDailyReminder(hour: hour, minute: minute);
+    final outcome =
+        await service.scheduleDailyReminder(hour: hour, minute: minute);
     state = AsyncData(NotificationTime(hour: hour, minute: minute));
+    return outcome;
   }
 }

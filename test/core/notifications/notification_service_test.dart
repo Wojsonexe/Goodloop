@@ -69,7 +69,8 @@ void main() {
   });
 
   group('initialize', () {
-    test('only performs native initialization once across repeated calls', () async {
+    test('only performs native initialization once across repeated calls',
+        () async {
       await service.initialize();
       await service.initialize();
       await service.initialize();
@@ -77,7 +78,8 @@ void main() {
       expect(calls.where((c) => c.method == 'initialize').length, 1);
     });
 
-    test('concurrent calls do not race into multiple native initializations', () async {
+    test('concurrent calls do not race into multiple native initializations',
+        () async {
       await Future.wait([
         service.initialize(),
         service.initialize(),
@@ -89,10 +91,16 @@ void main() {
 
     test('requests the Android notification permission during init', () async {
       await service.initialize();
-      expect(calls.where((c) => c.method == 'requestNotificationsPermission').length, 1);
+      expect(
+          calls
+              .where((c) => c.method == 'requestNotificationsPermission')
+              .length,
+          1);
     });
 
-    test('a permission-request failure does not stop initialize() from completing', () async {
+    test(
+        'a permission-request failure does not stop initialize() from completing',
+        () async {
       useHandler((call) async {
         if (call.method == 'requestNotificationsPermission') {
           throw PlatformException(code: 'error', message: 'denied');
@@ -103,14 +111,36 @@ void main() {
       await expectLater(service.initialize(), completes);
     });
 
-    test('re-arms the reminder on init because reminders are enabled by default', () async {
+    test(
+        'a missing exact-alarm permission during the cold-start re-arm does not stop initialize()',
+        () async {
+      // Fresh install, enabled by default, but the device hasn't granted
+      // SCHEDULE_EXACT_ALARM yet — the re-arm attempt inside
+      // _doInitialize() must not let that exception escape.
+      useHandler((call) async {
+        if (call.method == 'zonedSchedule') {
+          throw PlatformException(
+            code: 'exact_alarms_not_permitted',
+            message: 'Exact alarms are not permitted',
+          );
+        }
+        return _defaultHandler(call);
+      });
+
+      await expectLater(service.initialize(), completes);
+    });
+
+    test(
+        're-arms the reminder on init because reminders are enabled by default',
+        () async {
       // Fresh install: nothing in SharedPreferences yet, but isEnabled()
       // defaults to true, so initialize() should schedule the default time.
       await service.initialize();
       expect(calls.any((c) => c.method == 'zonedSchedule'), isTrue);
     });
 
-    test('does not re-arm on init after the user has disabled reminders', () async {
+    test('does not re-arm on init after the user has disabled reminders',
+        () async {
       await service.initialize();
       await service.disableReminder();
       calls = [];
@@ -166,7 +196,8 @@ void main() {
       expect(calls.where((c) => c.method == 'cancel').length, 2);
     });
 
-    test('falls back to inexact scheduling when the exact alarm call fails', () async {
+    test('falls back to an inexact alarm when the exact alarm is not permitted',
+        () async {
       await service.initialize();
       calls = [];
 
@@ -175,17 +206,24 @@ void main() {
         if (call.method == 'zonedSchedule') {
           zonedScheduleAttempts++;
           if (zonedScheduleAttempts == 1) {
-            throw PlatformException(code: 'error', message: 'exact alarms not permitted');
+            throw PlatformException(
+              code: 'exact_alarms_not_permitted',
+              message: 'Exact alarms are not permitted',
+            );
           }
         }
         return _defaultHandler(call);
       });
 
-      await expectLater(
-        service.scheduleDailyReminder(hour: 9, minute: 0),
-        completes,
-      );
+      final outcome = await service.scheduleDailyReminder(hour: 9, minute: 0);
+
+      expect(outcome, ReminderScheduleOutcome.inexact);
       expect(zonedScheduleAttempts, 2);
+
+      final retry = calls.lastWhere((c) => c.method == 'zonedSchedule');
+      final platformSpecifics =
+          (retry.arguments as Map)['platformSpecifics'] as Map;
+      expect(platformSpecifics['scheduleMode'], 'inexactAllowWhileIdle');
     });
   });
 
@@ -193,6 +231,73 @@ void main() {
     test('calls cancelAll on the plugin', () async {
       await service.cancelAll();
       expect(calls.any((c) => c.method == 'cancelAll'), isTrue);
+    });
+  });
+
+  group('canScheduleExactAlarms', () {
+    test('returns true when the plugin reports permission granted', () async {
+      useHandler((call) async {
+        if (call.method == 'canScheduleExactNotifications') return true;
+        return _defaultHandler(call);
+      });
+
+      expect(await service.canScheduleExactAlarms(), isTrue);
+    });
+
+    test('returns false when the plugin reports permission denied', () async {
+      useHandler((call) async {
+        if (call.method == 'canScheduleExactNotifications') return false;
+        return _defaultHandler(call);
+      });
+
+      expect(await service.canScheduleExactAlarms(), isFalse);
+    });
+
+    test('returns false instead of throwing if the plugin call itself fails',
+        () async {
+      useHandler((call) async {
+        if (call.method == 'canScheduleExactNotifications') {
+          throw PlatformException(code: 'error', message: 'boom');
+        }
+        return _defaultHandler(call);
+      });
+
+      await expectLater(service.canScheduleExactAlarms(), completion(isFalse));
+    });
+  });
+
+  group('requestExactAlarmPermission', () {
+    test(
+        'returns the granted status reported after the user returns from settings',
+        () async {
+      useHandler((call) async {
+        if (call.method == 'requestExactAlarmsPermission') return true;
+        return _defaultHandler(call);
+      });
+
+      expect(await service.requestExactAlarmPermission(), isTrue);
+    });
+
+    test('returns false when the user does not grant the permission', () async {
+      useHandler((call) async {
+        if (call.method == 'requestExactAlarmsPermission') return false;
+        return _defaultHandler(call);
+      });
+
+      expect(await service.requestExactAlarmPermission(), isFalse);
+    });
+
+    test('returns false instead of throwing if the plugin call itself fails',
+        () async {
+      useHandler((call) async {
+        if (call.method == 'requestExactAlarmsPermission') {
+          throw PlatformException(code: 'error', message: 'boom');
+        }
+        return _defaultHandler(call);
+      });
+
+      await expectLater(
+          service.requestExactAlarmPermission(), completion(isFalse));
     });
   });
 
@@ -235,10 +340,12 @@ void main() {
       // the daily reminder.
       expect(calls.where((c) => c.method == 'zonedSchedule'), isEmpty);
       expect(calls.where((c) => c.method == 'cancel'), isEmpty);
-      expect(await service.getScheduledTime(), const NotificationTime(hour: 8, minute: 0));
+      expect(await service.getScheduledTime(),
+          const NotificationTime(hour: 8, minute: 0));
     });
 
-    test('a plugin failure propagates to the caller instead of being swallowed', () async {
+    test('a plugin failure propagates to the caller instead of being swallowed',
+        () async {
       useHandler((call) async {
         if (call.method == 'show') {
           throw PlatformException(code: 'error', message: 'boom');
@@ -254,7 +361,8 @@ void main() {
   });
 
   group('disableReminder', () {
-    test('cancels the plugin notification and persists disabled state', () async {
+    test('cancels the plugin notification and persists disabled state',
+        () async {
       await service.initialize();
       calls = [];
 
@@ -276,7 +384,8 @@ void main() {
   });
 
   group('getScheduledTime', () {
-    test('returns the 20:00 default when nothing has been configured', () async {
+    test('returns the 20:00 default when nothing has been configured',
+        () async {
       final time = await service.getScheduledTime();
       expect(time, const NotificationTime(hour: 20, minute: 0));
     });
@@ -317,7 +426,9 @@ void main() {
       await container.read(notificationServiceProvider).initialize();
       calls = [];
 
-      await container.read(notificationSettingsProvider.notifier).schedule(16, 20);
+      await container
+          .read(notificationSettingsProvider.notifier)
+          .schedule(16, 20);
 
       final state = container.read(notificationSettingsProvider);
       expect(state.value, const NotificationTime(hour: 16, minute: 20));

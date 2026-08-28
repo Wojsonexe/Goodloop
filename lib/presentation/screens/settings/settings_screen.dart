@@ -39,6 +39,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
 
     if (time == null) return;
+    if (!await _ensureExactAlarmPermission()) return;
 
     try {
       await ref
@@ -57,6 +58,54 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         );
       }
     }
+  }
+
+  /// Returns true once exact-alarm permission is confirmed granted.
+  ///
+  /// Never opens system settings without first explaining why — shows an
+  /// explanation dialog, and only navigates to settings if the user agrees.
+  /// Returns false (without scheduling anything) if the user declines, or
+  /// if they return from settings without having granted it.
+  Future<bool> _ensureExactAlarmPermission() async {
+    final service = ref.read(notificationServiceProvider);
+    if (await service.canScheduleExactAlarms()) return true;
+
+    if (!mounted) return false;
+    final shouldOpenSettings = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Potrzebne uprawnienie'),
+        content: const Text(
+          'Aby GoodLoop mógł przypominać Ci dokładnie o wybranej godzinie, '
+          'potrzebuje uprawnienia "Alarmy i przypomnienia" z ustawień systemowych. '
+          'Bez niego przypomnienie może nie przyjść o czasie.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Anuluj'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Otwórz ustawienia'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldOpenSettings != true) return false;
+
+    final granted = await service.requestExactAlarmPermission();
+    if (!granted && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Bez tego uprawnienia przypomnienie może nie przyjść o czasie.',
+          ),
+        ),
+      );
+    }
+    return granted;
   }
 
   @override
