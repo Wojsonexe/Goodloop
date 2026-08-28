@@ -227,6 +227,44 @@ void main() {
     });
   });
 
+  group('rearmIfEnabled', () {
+    test('does nothing before initialize()', () async {
+      await service.rearmIfEnabled();
+      expect(calls, isEmpty);
+    });
+
+    test('re-schedules when reminders are enabled', () async {
+      await service.initialize();
+      calls = [];
+
+      await service.rearmIfEnabled();
+
+      expect(calls.any((c) => c.method == 'zonedSchedule'), isTrue);
+    });
+
+    test('does nothing when the user has disabled reminders', () async {
+      await service.initialize();
+      await service.disableReminder();
+      calls = [];
+
+      await service.rearmIfEnabled();
+
+      expect(calls.any((c) => c.method == 'zonedSchedule'), isFalse);
+    });
+
+    test('swallows a scheduling failure instead of rethrowing', () async {
+      await service.initialize();
+      useHandler((call) async {
+        if (call.method == 'zonedSchedule') {
+          throw PlatformException(code: 'boom', message: 'boom');
+        }
+        return _defaultHandler(call);
+      });
+
+      await expectLater(service.rearmIfEnabled(), completes);
+    });
+  });
+
   group('cancelAll', () {
     test('calls cancelAll on the plugin', () async {
       await service.cancelAll();

@@ -263,6 +263,17 @@ class NotificationService {
     debugPrint('[Notifications] All cancelled');
   }
 
+  Future<void> rearmIfEnabled() async {
+    if (!_initialized) return;
+    if (!await isEnabled()) return;
+    final time = await getScheduledTime();
+    try {
+      await scheduleDailyReminder(hour: time.hour, minute: time.minute);
+    } catch (e) {
+      debugPrint('[Notifications] re-arm on resume failed: $e');
+    }
+  }
+
   /// Immediately shows one test notification, using the same Android
   /// channel as the daily reminder. Does not touch SharedPreferences and
   /// does not affect the scheduled daily reminder in any way — purely a
