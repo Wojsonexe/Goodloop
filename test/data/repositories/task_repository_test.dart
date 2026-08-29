@@ -85,4 +85,32 @@ void main() {
       );
     });
   });
+
+  group('TaskRepository.nextStreak', () {
+    final now = DateTime(2026, 8, 29, 14, 0);
+
+    test('first completion ever starts the streak at 1', () {
+      expect(TaskRepository.nextStreak(0, null, now), 1);
+    });
+
+    test('another task the same day leaves the streak unchanged', () {
+      final earlierToday = DateTime(2026, 8, 29, 8, 0);
+      expect(TaskRepository.nextStreak(5, earlierToday, now), 5);
+    });
+
+    test('completion on the next day increments the streak', () {
+      final yesterday = DateTime(2026, 8, 28, 23, 0);
+      expect(TaskRepository.nextStreak(5, yesterday, now), 6);
+    });
+
+    test('a gap of two or more days resets the streak to 1', () {
+      final threeDaysAgo = DateTime(2026, 8, 26, 12, 0);
+      expect(TaskRepository.nextStreak(9, threeDaysAgo, now), 1);
+    });
+
+    test('same day with a zeroed streak still yields at least 1', () {
+      final earlierToday = DateTime(2026, 8, 29, 1, 0);
+      expect(TaskRepository.nextStreak(0, earlierToday, now), 1);
+    });
+  });
 }

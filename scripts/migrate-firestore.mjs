@@ -29,8 +29,11 @@ const GARBAGE_FEED_IDS = [
 // Posty w feed, których content pasuje do wzorca — usuwane razem z komentarzami.
 const GARBAGE_FEED_CONTENT = [/^test$/i, /^\s*$/];
 const APPWRITE_MARKER = 'cloud.appwrite.io';
-// Po wyczyszczeniu tablic — przelicz completedTasks/totalPoints/level z realnych zadań.
+// Po wyczyszczeniu tablic — przelicz completedTasks/totalPoints/level z realnych
+// zadań. Dotyka TYLKO userów, którym faktycznie usunięto śmieciowe id
+// (chyba że RECALC_ALL_USERS = true → przelicza wszystkich, także tych bez zmian).
 const RECALC_USER_STATS = true;
+const RECALC_ALL_USERS = false;
 const LEVEL = (points) => Math.floor(points / 100) + 1;
 // ───────────────────────────────────────────────────────────────────────────
 
@@ -48,10 +51,8 @@ let planned = 0;
 const tag = COMMIT ? '[WRITE]' : '[dry-run]';
 const log = (...m) => console.log(tag, ...m);
 
-/** Zbiorczy zapis w porcjach po 400. */
+/** Zbiorczy zapis w porcjach po 400 — świeży batch na każdą porcję i każdy flush. */
 function makeBatcher() {
-  let batch = db.batch();
-  let n = 0;
   const ops = [];
   return {
     set: (ref, data, opts) => { ops.push(['set', ref, data, opts]); },
@@ -59,14 +60,16 @@ function makeBatcher() {
     delete: (ref) => { ops.push(['delete', ref]); },
     async flush() {
       planned += ops.length;
-      if (!COMMIT) { ops.length = 0; return; }
-      for (const op of ops) {
-        if (op[0] === 'set') batch.set(op[1], op[2], op[3] ?? {});
-        else if (op[0] === 'update') batch.update(op[1], op[2]);
-        else batch.delete(op[1]);
-        if (++n >= 400) { await batch.commit(); batch = db.batch(); n = 0; }
+      if (!COMMIT || ops.length === 0) { ops.length = 0; return; }
+      for (let i = 0; i < ops.length; i += 400) {
+        const batch = db.batch();
+        for (const op of ops.slice(i, i + 400)) {
+          if (op[0] === 'set') batch.set(op[1], op[2], op[3] ?? {});
+          else if (op[0] === 'update') batch.update(op[1], op[2]);
+          else batch.delete(op[1]);
+        }
+        await batch.commit();
       }
-      if (n > 0) { await batch.commit(); n = 0; }
       ops.length = 0;
     },
   };
@@ -105,7 +108,8 @@ async function phaseGarbage(b) {
     for (const u of users.docs) {
       const ids = Array.isArray(u.get('completedTaskIds')) ? u.get('completedTaskIds') : [];
       const kept = ids.filter((id) => !deletedTaskIds.has(id) && taskPoints.has(id));
-      if (kept.length === ids.length && !RECALC_USER_STATS) continue;
+      const arrayChanged = kept.length !== ids.length;
+      if (!arrayChanged && !RECALC_ALL_USERS) continue;
 
       const patch = { completedTaskIds: kept };
       if (RECALC_USER_STATS) {
@@ -114,8 +118,9 @@ async function phaseGarbage(b) {
         patch.totalPoints = pts;
         patch.level = LEVEL(pts);
       }
+      const dropped = ids.filter((id) => !kept.includes(id));
       b.update(u.ref, patch);
-      log('fix users/' + u.id, JSON.stringify(patch));
+      log('fix users/' + u.id, `usunięte id: ${JSON.stringify(dropped)} →`, JSON.stringify(patch));
     }
   }
 }
