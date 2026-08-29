@@ -190,8 +190,8 @@ function isTaskCompletion() {
     && a.completedTasks == b.completedTasks + 1
     && a.totalPoints == b.totalPoints
        + get(/databases/$(database)/documents/global_tasks/$(newId)).data.points
-    && a.streakDays >= b.streakDays
-    && a.streakDays <= b.streakDays + 1;
+    // seria: bez zmian, +1, albo reset do 1 (przerwa). Max +1 na komplet blokuje inflację.
+    && (a.streakDays == b.streakDays || a.streakDays == b.streakDays + 1 || a.streakDays == 1);
   // level: nie walidowane ściśle — wynika z totalPoints, które JEST. Ranking po punktach pewny.
 }
 

@@ -110,6 +110,9 @@ class UserRepository {
     try {
       await _usersCollection.doc(uid).update({
         'achievements': FieldValue.arrayUnion([achievementId]),
+        // Pole pomocnicze walidowane regułą Firestore — musi lecieć razem
+        // z arrayUnion (patrz docs/firebase-schema.md, isAchievementUnlock).
+        'lastUnlockedAchievement': achievementId,
         'lastActive': FieldValue.serverTimestamp(),
       });
     } catch (e) {

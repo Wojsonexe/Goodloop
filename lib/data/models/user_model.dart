@@ -5,7 +5,7 @@ class UserModel {
   final String uid;
   final String email;
   final String displayName;
-  final String? photoURL;
+  final String? photoUrl;
   final int completedTasks;
   final int streakDays;
   final int totalPoints;
@@ -14,14 +14,20 @@ class UserModel {
   final List<String> achievements;
   final int level;
   final DateTime? lastTaskCompletedDate;
-
   final List<String> completedTaskIds;
+
+  /// Id zadania z ostatniego ukończenia — pole pomocnicze walidowane regułą
+  /// Firestore (patrz docs/firebase-schema.md).
+  final String lastCompletedTaskId;
+
+  /// Id ostatnio odblokowanego osiągnięcia — j.w.
+  final String lastUnlockedAchievement;
 
   UserModel({
     required this.uid,
     required this.email,
     required this.displayName,
-    this.photoURL,
+    this.photoUrl,
     this.completedTasks = 0,
     this.streakDays = 0,
     this.totalPoints = 0,
@@ -31,10 +37,11 @@ class UserModel {
     this.achievements = const [],
     this.lastTaskCompletedDate,
     this.completedTaskIds = const [],
+    this.lastCompletedTaskId = '',
+    this.lastUnlockedAchievement = '',
   });
 
   String get id => uid;
-  String? get photoUrl => photoURL;
   int get streak => streakDays;
   int get points => totalPoints;
 
@@ -52,7 +59,8 @@ class UserModel {
       uid: map['uid'] as String? ?? '',
       email: map['email'] as String? ?? '',
       displayName: map['displayName'] as String? ?? '',
-      photoURL: map['photoURL'] as String?,
+      // Tolerancja na okno migracji: stare dokumenty mają photoURL.
+      photoUrl: (map['photoUrl'] ?? map['photoURL']) as String?,
       completedTasks: (map['completedTasks'] as num?)?.toInt() ?? 0,
       streakDays: (map['streakDays'] as num?)?.toInt() ?? 0,
       totalPoints: (map['totalPoints'] as num?)?.toInt() ?? 0,
@@ -64,6 +72,8 @@ class UserModel {
           ? _parseTimestamp(map['lastTaskCompletedDate'])
           : null,
       completedTaskIds: _parseStringList(map['completedTaskIds']),
+      lastCompletedTaskId: map['lastCompletedTaskId'] as String? ?? '',
+      lastUnlockedAchievement: map['lastUnlockedAchievement'] as String? ?? '',
     );
   }
 
@@ -91,7 +101,7 @@ class UserModel {
       'uid': uid,
       'email': email,
       'displayName': displayName,
-      'photoURL': photoURL,
+      'photoUrl': photoUrl,
       'completedTasks': completedTasks,
       'streakDays': streakDays,
       'totalPoints': totalPoints,
@@ -103,6 +113,8 @@ class UserModel {
           ? Timestamp.fromDate(lastTaskCompletedDate!)
           : null,
       'completedTaskIds': completedTaskIds,
+      'lastCompletedTaskId': lastCompletedTaskId,
+      'lastUnlockedAchievement': lastUnlockedAchievement,
     };
   }
 
@@ -110,7 +122,7 @@ class UserModel {
     String? uid,
     String? email,
     String? displayName,
-    String? photoURL,
+    String? photoUrl,
     int? completedTasks,
     int? streakDays,
     int? totalPoints,
@@ -120,12 +132,14 @@ class UserModel {
     List<String>? achievements,
     DateTime? lastTaskCompletedDate,
     List<String>? completedTaskIds,
+    String? lastCompletedTaskId,
+    String? lastUnlockedAchievement,
   }) {
     return UserModel(
       uid: uid ?? this.uid,
       email: email ?? this.email,
       displayName: displayName ?? this.displayName,
-      photoURL: photoURL ?? this.photoURL,
+      photoUrl: photoUrl ?? this.photoUrl,
       completedTasks: completedTasks ?? this.completedTasks,
       streakDays: streakDays ?? this.streakDays,
       totalPoints: totalPoints ?? this.totalPoints,
@@ -136,6 +150,9 @@ class UserModel {
       lastTaskCompletedDate:
           lastTaskCompletedDate ?? this.lastTaskCompletedDate,
       completedTaskIds: completedTaskIds ?? this.completedTaskIds,
+      lastCompletedTaskId: lastCompletedTaskId ?? this.lastCompletedTaskId,
+      lastUnlockedAchievement:
+          lastUnlockedAchievement ?? this.lastUnlockedAchievement,
     );
   }
 
@@ -152,7 +169,7 @@ class UserModel {
         other.uid == uid &&
         other.email == email &&
         other.displayName == displayName &&
-        other.photoURL == photoURL &&
+        other.photoUrl == photoUrl &&
         other.completedTasks == completedTasks &&
         other.streakDays == streakDays &&
         other.totalPoints == totalPoints &&
@@ -161,7 +178,9 @@ class UserModel {
         listEquals(other.achievements, achievements) &&
         other.level == level &&
         other.lastTaskCompletedDate == lastTaskCompletedDate &&
-        listEquals(other.completedTaskIds, completedTaskIds);
+        listEquals(other.completedTaskIds, completedTaskIds) &&
+        other.lastCompletedTaskId == lastCompletedTaskId &&
+        other.lastUnlockedAchievement == lastUnlockedAchievement;
   }
 
   @override
@@ -169,7 +188,7 @@ class UserModel {
     return uid.hashCode ^
         email.hashCode ^
         displayName.hashCode ^
-        photoURL.hashCode ^
+        photoUrl.hashCode ^
         completedTasks.hashCode ^
         streakDays.hashCode ^
         totalPoints.hashCode ^
@@ -178,6 +197,8 @@ class UserModel {
         achievements.hashCode ^
         level.hashCode ^
         lastTaskCompletedDate.hashCode ^
-        completedTaskIds.hashCode;
+        completedTaskIds.hashCode ^
+        lastCompletedTaskId.hashCode ^
+        lastUnlockedAchievement.hashCode;
   }
 }
