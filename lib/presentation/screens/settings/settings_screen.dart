@@ -9,9 +9,12 @@ import 'package:goodloop/core/constants/storage_keys.dart';
 import 'package:goodloop/core/notifications/notification_service.dart';
 import 'package:goodloop/domain/providers/auth_provider.dart';
 import 'package:goodloop/domain/providers/theme_provider.dart';
+import 'package:goodloop/core/notifications/oem_battery_helper.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+enum _DelayHelpChoice { battery, autoStart }
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -163,6 +166,49 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
+  Future<void> _showDelayedNotificationsHelp() async {
+    final choice = await showDialog<_DelayHelpChoice>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Spóźnione powiadomienia'),
+        content: const Text(
+          'Niektóre telefony (Xiaomi/Redmi/POCO, Realme/OPPO, Huawei, vivo) '
+          'agresywnie usypiają aplikacje w tle i opóźniają przypomnienia nawet '
+          'o kilka minut.\n\n'
+          'Pomaga:\n'
+          '• wyłączenie oszczędzania baterii dla GoodLoop,\n'
+          '• włączenie „automatycznego uruchamiania" (autostart),\n'
+          '• zablokowanie aplikacji w widoku ostatnich aplikacji.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Zamknij'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, _DelayHelpChoice.autoStart),
+            child: const Text('Autostart'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, _DelayHelpChoice.battery),
+            child: const Text('Bateria'),
+          ),
+        ],
+      ),
+    );
+
+    if (choice == _DelayHelpChoice.battery) {
+      final ok = await OemBatteryHelper.openBatteryOptimization();
+      if (!ok && mounted) _snack('Nie udało się otworzyć ustawień baterii.');
+    } else if (choice == _DelayHelpChoice.autoStart) {
+      final ok = await OemBatteryHelper.openAutoStart();
+      if (!ok && mounted) {
+        _snack('Ten telefon nie ma osobnego ekranu autostartu — '
+            'wystarczy wyłączyć oszczędzanie baterii.');
+      }
+    }
+  }
+
   // ── Biometria ─────────────────────────────────────────────────────────────
 
   Future<void> _toggleBiometrics(bool value) async {
@@ -212,8 +258,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       ),
     );
 
-    if (newName == null || newName.isEmpty || newName == user.displayName)
+    if (newName == null || newName.isEmpty || newName == user.displayName) {
       return;
+    }
     try {
       await ref
           .read(userRepositoryProvider)
@@ -442,6 +489,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               title: const Text('Wyślij testowe powiadomienie'),
               onTap: _sendTestNotification,
             ),
+            if (OemBatteryHelper.isSupported) ...[
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.battery_saver_outlined),
+                title: const Text('Powiadomienia przychodzą z opóźnieniem?'),
+                subtitle: const Text(
+                    'Wyłącz oszczędzanie baterii / włącz autostart dla Goodloop'),
+                onTap: _showDelayedNotificationsHelp,
+              )
+            ]
           ]),
           const SizedBox(height: 24),
           _section('Wygląd', [
