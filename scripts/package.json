@@ -1,0 +1,14 @@
+{
+  "name": "goodloop-scripts",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "One-off maintenance scripts for the GoodLoop Firestore database.",
+  "scripts": {
+    "migrate": "node migrate-firestore.mjs",
+    "migrate:commit": "node migrate-firestore.mjs --commit"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.7.0"
+  }
+}
