@@ -31,9 +31,21 @@ android {
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
+            // TODO: prawdziwy keystore. Na razie podpis kluczem debug —
+            // instalowalny przez "nieznane źródła", wystarcza do testów.
             signingConfig = signingConfigs.getByName("debug")
+
+            // Wyłączony R8 na czas buildów testowych — flutter_local_notifications
+            // 17.x wysypuje się z włączonym shrinkerem ("TypeToken must be created
+            // with a type argument") przy odczycie zaplanowanych powiadomień.
+            // Do prawdziwego release: isMinifyEnabled = true + poniższe proguardFiles
+            // (reguły są w proguard-rules.pro) i przetestować powiadomienia.
+            isMinifyEnabled = false
+            isShrinkResources = false
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
     }
 }
