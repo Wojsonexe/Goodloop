@@ -212,7 +212,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             ],
                           ),
                           GestureDetector(
-                            onTap: () => context.push('/profile'),
+                            onTap: () => context.push('/settings'),
                             child: CircleAvatar(
                               radius: 28,
                               backgroundImage: user.photoUrl != null
@@ -364,9 +364,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               context.push('/achievements');
               break;
             case 2:
-              context.push('/feed');
-              break;
-            case 3:
               context.push('/settings');
               break;
           }
@@ -378,7 +375,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             icon: Icon(Icons.emoji_events),
             label: 'Achievements',
           ),
-          BottomNavigationBarItem(icon: Icon(Icons.people), label: 'Feed'),
           BottomNavigationBarItem(
             icon: Icon(Icons.settings),
             label: 'Settings',
@@ -411,8 +407,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
             const SizedBox(height: 32),
             CustomButton(
-              onPressed: () => context.push('/feed'),
-              child: const Text('View Community Feed'),
+              onPressed: () => context.push('/achievements'),
+              child: const Text('Zobacz osiągnięcia'),
             ),
           ],
         ),
