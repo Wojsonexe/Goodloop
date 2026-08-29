@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:goodloop/data/models/achievement_model.dart';
 import 'package:goodloop/data/models/task_model.dart';
 import 'package:goodloop/domain/providers/achievement_provider.dart';
+import 'package:goodloop/features/friends/providers/friends_providers.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../domain/providers/auth_provider.dart';
 import '../../../domain/providers/task_provider.dart';
@@ -364,18 +365,29 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               context.push('/achievements');
               break;
             case 2:
+              context.push('/friends');
+              break;
+            case 3:
               context.push('/settings');
               break;
           }
         },
         type: BottomNavigationBarType.fixed,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(
+        items: [
+          const BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+          const BottomNavigationBarItem(
             icon: Icon(Icons.emoji_events),
             label: 'Achievements',
           ),
           BottomNavigationBarItem(
+            icon: Badge.count(
+              count: ref.watch(incomingRequestCountProvider),
+              isLabelVisible: ref.watch(incomingRequestCountProvider) > 0,
+              child: const Icon(Icons.group),
+            ),
+            label: 'Znajomi',
+          ),
+          const BottomNavigationBarItem(
             icon: Icon(Icons.settings),
             label: 'Settings',
           ),
