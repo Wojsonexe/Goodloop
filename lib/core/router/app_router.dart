@@ -1,11 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:goodloop/features/achievements/presentation/screens/achievements_screen.dart';
 import '../../presentation/screens/welcome/welcome_screen.dart';
 import '../../presentation/screens/auth/login_screen.dart';
 import '../../presentation/screens/auth/register_screen.dart';
 import '../../presentation/screens/home/home_screen.dart';
 // import '../../presentation/screens/profile/profile_screen.dart';
-// import '../../presentation/screens/achievements/achievements_screen.dart';
 // import '../../presentation/screens/feed/feed_screen.dart';
 import '../../presentation/screens/settings/settings_screen.dart';
 import '../../domain/providers/auth_provider.dart';
@@ -43,14 +43,14 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const RegisterScreen(),
       ),
       GoRoute(path: '/home', builder: (context, state) => const HomeScreen()),
+      GoRoute(
+        path: '/achievements',
+        builder: (context, state) => const AchievementsScreen(),
+      ),
       /*
       GoRoute(
         path: '/profile',
         builder: (context, state) => const ProfileScreen(),
-      ),
-      GoRoute(
-        path: '/achievements',
-        builder: (context, state) => const AchievementsScreen(),
       ),
       GoRoute(path: '/feed', builder: (context, state) => const FeedScreen()),
       */

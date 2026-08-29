@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:confetti/confetti.dart';
 import 'package:go_router/go_router.dart';
+import 'package:goodloop/data/models/achievement_model.dart';
 import 'package:goodloop/data/models/task_model.dart';
+import 'package:goodloop/domain/providers/achievement_provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../domain/providers/auth_provider.dart';
 import '../../../domain/providers/task_provider.dart';
@@ -84,12 +86,81 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         .completeTask(task.id, task.points);
 
     if (!mounted) return;
-    _confettiController.play();
 
+    // Punkty + konfetti od razu.
+    _confettiController.play();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('🎉 +${task.points} points! Amazing job!'),
         backgroundColor: AppColors.success,
+      ),
+    );
+
+    // Sprawdź osiągnięcia. Liczbę ukończonych zadań liczymy lokalnie —
+    // zapis w Firestore (increment) mógł się jeszcze nie rozpropagować,
+    // więc ponowny odczyt zwróciłby starą wartość.
+    final unlocked =
+        await ref.read(achievementCheckerProvider).checkAfterTaskCompletion(
+              userId: user.id,
+              alreadyUnlocked: user.achievements.toSet(),
+              completedTasks: user.completedTasks + 1,
+              streakDays: user.streakDays,
+              completionTime: DateTime.now(),
+            );
+    if (!mounted || unlocked.isEmpty) return;
+
+    final newlyUnlocked = unlocked
+        .map(AchievementModel.byId)
+        .whereType<AchievementModel>()
+        .toList();
+    if (newlyUnlocked.isEmpty) return;
+
+    await _showUnlockedDialog(newlyUnlocked);
+  }
+
+  Future<void> _showUnlockedDialog(List<AchievementModel> achievements) async {
+    if (!mounted) return;
+    final theme = Theme.of(context);
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          achievements.length == 1
+              ? 'Nowe osiągnięcie!'
+              : 'Nowe osiągnięcia! (${achievements.length})',
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final a in achievements)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Text(a.icon, style: const TextStyle(fontSize: 32)),
+                title: Text(a.title),
+                subtitle: Text(a.description),
+                trailing: Text(
+                  '+${a.points}',
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Super!'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              context.push('/achievements');
+            },
+            child: const Text('Zobacz wszystkie'),
+          ),
+        ],
       ),
     );
   }
