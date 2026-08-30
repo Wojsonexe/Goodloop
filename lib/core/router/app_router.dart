@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:goodloop/features/achievements/presentation/screens/achievements_screen.dart';
+import 'package:goodloop/features/achievements/presentation/achievements_screen.dart';
 import 'package:goodloop/features/friends/presentation/friends_screen.dart';
-import '../../presentation/screens/welcome/welcome_screen.dart';
-import '../../presentation/screens/auth/login_screen.dart';
-import '../../presentation/screens/auth/register_screen.dart';
-import '../../presentation/screens/home/home_screen.dart';
-import '../../presentation/screens/settings/settings_screen.dart';
-import '../../domain/providers/auth_provider.dart';
+import 'package:goodloop/features/auth/presentation/welcome_screen.dart';
+import 'package:goodloop/features/auth/presentation/login_screen.dart';
+import 'package:goodloop/features/auth/presentation/register_screen.dart';
+import 'package:goodloop/features/home/presentation/home_screen.dart';
+import 'package:goodloop/features/settings/presentation/settings_screen.dart';
+import 'package:goodloop/features/auth/providers/auth_provider.dart';
 
 /// Wszystkie zdefiniowane ścieżki. [redirect] używa tego, by zalogowanego
 /// użytkownika na nieznanej lokalizacji (`/`, `/profile`, `/feed`, literówka)

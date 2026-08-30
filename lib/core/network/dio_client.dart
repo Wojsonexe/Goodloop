@@ -1,7 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:goodloop/config/api_config.dart';
+import 'package:goodloop/core/network/api_config.dart';
 
 /// Wspólny klient HTTP do backendu GoodLoop. Interceptor dokleja świeży
 /// Firebase ID token do każdego żądania (`Authorization: Bearer …`).
