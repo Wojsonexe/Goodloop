@@ -4,7 +4,7 @@ import 'core/constants/app_theme.dart';
 import 'core/lifecycle/app_lifecycle_provider.dart';
 import 'core/notifications/notification_service.dart';
 import 'core/router/app_router.dart';
-import 'domain/providers/theme_provider.dart';
+import 'features/settings/providers/theme_provider.dart';
 
 class GoodLoopApp extends ConsumerWidget {
   const GoodLoopApp({super.key});

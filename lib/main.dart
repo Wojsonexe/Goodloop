@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:goodloop/firebase_options.dart';
 import 'app.dart';
 import 'package:goodloop/core/notifications/notification_service.dart';
-import 'logger.dart';
+import 'package:goodloop/core/utils/logger.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
