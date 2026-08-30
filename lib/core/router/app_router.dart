@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:goodloop/features/achievements/presentation/screens/achievements_screen.dart';
+import 'package:goodloop/features/friends/presentation/friends_screen.dart';
 import '../../presentation/screens/welcome/welcome_screen.dart';
 import '../../presentation/screens/auth/login_screen.dart';
 import '../../presentation/screens/auth/register_screen.dart';
@@ -18,6 +19,7 @@ const _knownRoutes = {
   '/auth/register',
   '/home',
   '/achievements',
+  '/friends',
   '/settings',
 };
 
@@ -64,6 +66,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/achievements',
         builder: (context, state) => const AchievementsScreen(),
+      ),
+      GoRoute(
+        path: '/friends',
+        builder: (context, state) => const FriendsScreen(),
       ),
       GoRoute(
         path: '/settings',
