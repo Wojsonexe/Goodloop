@@ -1,4 +1,7 @@
 import 'dart:developer';
+import 'dart:io';
+import 'package:dio/dio.dart';
+import 'package:goodloop/core/network/dio_client.dart'; // dioProvider
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -117,6 +120,32 @@ class AuthController extends StateNotifier<AsyncValue<UserModel?>> {
     try {
       await _authRepository.resetPassword(email);
     } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<void> updateProfilePhoto({
+    required String userId,
+    required File imageFile,
+  }) async {
+    state = const AsyncValue.loading();
+    try {
+      final form = FormData.fromMap({
+        'file': await MultipartFile.fromFile(imageFile.path,
+            filename: 'avatar.jpg'),
+      });
+      final res = await ref
+          .read(dioProvider)
+          .post<Map<String, dynamic>>('/me/avatar', data: form);
+      final url = res.data!['photoUrl'] as String;
+
+      final userRepo = ref.read(userRepositoryProvider);
+      await userRepo.updateUser(userId, {'photoUrl': url});
+      await _authRepository.currentUser?.updatePhotoURL(url);
+
+      state = AsyncValue.data(await userRepo.getUser(userId));
+    } catch (e, stack) {
+      state = AsyncValue.error(e, stack);
       rethrow;
     }
   }
