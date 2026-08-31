@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:goodloop/features/achievements/presentation/achievements_screen.dart';
+import 'package:goodloop/features/chat/presentation/chat_screen.dart';
+import 'package:goodloop/features/chat/presentation/conversations_screen.dart';
 import 'package:goodloop/features/friends/presentation/friends_screen.dart';
 import 'package:goodloop/features/auth/presentation/welcome_screen.dart';
 import 'package:goodloop/features/auth/presentation/login_screen.dart';
@@ -23,6 +25,7 @@ const _knownRoutes = {
   '/friends',
   '/profile',
   '/settings',
+  '/chat',
 };
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -47,7 +50,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (isAuthRoute) return '/home';
 
       // Zalogowany, ale trasa nieznana → /home (zamiast GoException).
-      if (!_knownRoutes.contains(loc)) return '/home';
+      // w redirect, zamiast samego contains:
+      if (!_knownRoutes.contains(loc) && !loc.startsWith('/chat/')) {
+        return '/home';
+      }
 
       return null;
     },
@@ -78,6 +84,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/settings',
         builder: (context, state) => const SettingsScreen(),
+      ),
+      GoRoute(path: '/chat', builder: (c, s) => const ConversationsScreen()),
+      GoRoute(
+        path: '/chat/:id',
+        builder: (c, s) => ChatScreen(conversationId: s.pathParameters['id']!),
       ),
     ],
     // Siatka bezpieczeństwa — link „Home” domyślnego ekranu błędu GoRoutera

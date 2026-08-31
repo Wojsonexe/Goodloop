@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:goodloop/core/constants/app_colors.dart';
 import 'package:goodloop/core/network/api_exception.dart';
+import 'package:goodloop/features/chat/providers/conversations_provider.dart';
 
 import '../data/friend_models.dart';
 import '../providers/friends_providers.dart';
@@ -41,7 +43,8 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen>
         .showSnackBar(SnackBar(content: Text(message)));
   }
 
-  Future<bool> _confirm(String title, String message, String confirmLabel) async {
+  Future<bool> _confirm(
+      String title, String message, String confirmLabel) async {
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -152,7 +155,8 @@ class _FriendsTab extends ConsumerWidget {
           if (list.isEmpty) {
             return const _Empty(
               icon: Icons.group_outlined,
-              text: 'Nie masz jeszcze znajomych.\nZnajdź kogoś w zakładce „Szukaj".',
+              text:
+                  'Nie masz jeszcze znajomych.\nZnajdź kogoś w zakładce „Szukaj".',
             );
           }
           return ListView.separated(
@@ -167,6 +171,22 @@ class _FriendsTab extends ConsumerWidget {
                 trailing: PopupMenuButton<String>(
                   onSelected: (value) async {
                     final actions = ref.read(friendActionsProvider);
+                    if (value == 'message') {
+                      try {
+                        final convId = await ref
+                            .read(conversationsProvider.notifier)
+                            .openWith(f.user.id);
+
+                        if (context.mounted) {
+                          context.push('/chat/$convId');
+                        }
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context)
+                              .showSnackBar(SnackBar(content: Text('$e')));
+                        }
+                      }
+                    }
                     if (value == 'remove') {
                       if (await confirm(
                         'Usuń znajomego',
@@ -189,7 +209,9 @@ class _FriendsTab extends ConsumerWidget {
                     }
                   },
                   itemBuilder: (context) => const [
-                    PopupMenuItem(value: 'remove', child: Text('Usuń znajomego')),
+                    PopupMenuItem(value: 'message', child: Text('Napisz')),
+                    PopupMenuItem(
+                        value: 'remove', child: Text('Usuń znajomego')),
                     PopupMenuItem(value: 'block', child: Text('Zablokuj')),
                   ],
                 ),
@@ -222,10 +244,12 @@ class _RequestsTab extends ConsumerWidget {
           onRetry: () => ref.invalidate(friendRequestsProvider),
         ),
         data: (list) {
-          final incoming =
-              list.where((r) => r.direction == RequestDirection.incoming).toList();
-          final outgoing =
-              list.where((r) => r.direction == RequestDirection.outgoing).toList();
+          final incoming = list
+              .where((r) => r.direction == RequestDirection.incoming)
+              .toList();
+          final outgoing = list
+              .where((r) => r.direction == RequestDirection.outgoing)
+              .toList();
 
           if (incoming.isEmpty && outgoing.isEmpty) {
             return const _Empty(
@@ -387,8 +411,8 @@ class _SearchResultTile extends ConsumerWidget {
           child: const Text('Odblokuj'),
         ),
       FriendRelation.none => FilledButton.tonal(
-          onPressed: () =>
-              act(() => actions.sendRequest(user.id), ok: 'Wysłano zaproszenie.'),
+          onPressed: () => act(() => actions.sendRequest(user.id),
+              ok: 'Wysłano zaproszenie.'),
           child: const Text('Dodaj'),
         ),
     };
@@ -505,7 +529,8 @@ class _ErrorView extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         Center(
-          child: TextButton(onPressed: onRetry, child: const Text('Spróbuj ponownie')),
+          child: TextButton(
+              onPressed: onRetry, child: const Text('Spróbuj ponownie')),
         ),
       ],
     );
