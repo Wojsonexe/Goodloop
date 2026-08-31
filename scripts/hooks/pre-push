@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Blokuje push tagu vX.Y.Z jeśli nie zgadza się z 'version:' w pubspec.yaml
+# (w commicie, na który wskazuje tag). Backstop na ręczne tagowanie.
+set -euo pipefail
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  case "$remote_ref" in
+    refs/tags/v[0-9]*)
+      tag_ver="${remote_ref#refs/tags/v}"
+      pub_ver="$(git show "${local_sha}:pubspec.yaml" 2>/dev/null \
+        | grep -E '^version:' \
+        | sed 's/version:[[:space:]]*//; s/+.*//' \
+        | tr -d '[:space:]')"
+
+      if [[ -z "$pub_ver" ]]; then
+        echo "  ✗ pre-push: nie odczytałem 'version:' z pubspec.yaml w ${local_sha:0:9}" >&2
+        exit 1
+      fi
+      if [[ "$tag_ver" != "$pub_ver" ]]; then
+        echo "" >&2
+        echo "  ✗ pre-push: tag 'v${tag_ver}' ≠ pubspec.yaml ('${pub_ver}')" >&2
+        echo "    Bumpnij 'version:' w pubspec.yaml i przetaguj, albo popraw nazwę tagu." >&2
+        echo "" >&2
+        exit 1
+      fi
+      echo "  ✓ pre-push: v${tag_ver} zgadza się z pubspec.yaml" >&2
+      ;;
+  esac
+done
+
+exit 0
