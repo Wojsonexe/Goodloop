@@ -7,12 +7,13 @@ import 'package:goodloop/features/auth/presentation/welcome_screen.dart';
 import 'package:goodloop/features/auth/presentation/login_screen.dart';
 import 'package:goodloop/features/auth/presentation/register_screen.dart';
 import 'package:goodloop/features/home/presentation/home_screen.dart';
+import 'package:goodloop/features/profile/presentation/screens/profile_screen.dart';
 import 'package:goodloop/features/settings/presentation/settings_screen.dart';
 import 'package:goodloop/features/auth/providers/auth_provider.dart';
 
 /// Wszystkie zdefiniowane ścieżki. [redirect] używa tego, by zalogowanego
-/// użytkownika na nieznanej lokalizacji (`/`, `/profile`, `/feed`, literówka)
-/// odesłać na `/home` zamiast pokazywać ekran błędu GoRoutera.
+/// użytkownika na nieznanej lokalizacji (`/`, `/feed`, literówka) odesłać
+/// na `/home` zamiast pokazywać ekran błędu GoRoutera.
 const _knownRoutes = {
   '/welcome',
   '/auth/login',
@@ -20,6 +21,7 @@ const _knownRoutes = {
   '/home',
   '/achievements',
   '/friends',
+  '/profile',
   '/settings',
 };
 
@@ -71,6 +73,8 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/friends',
         builder: (context, state) => const FriendsScreen(),
       ),
+      GoRoute(
+          path: '/profile', builder: (context, state) => const ProfileScreen()),
       GoRoute(
         path: '/settings',
         builder: (context, state) => const SettingsScreen(),
