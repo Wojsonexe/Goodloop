@@ -1,3 +1,13 @@
+import java.util.Properties
+import java.io.FileInputStream
+
+val keystorePropertiesFile = rootProject.file("key.properties")
+val keystoreProperties = Properties().apply {
+    if (keystorePropertiesFile.exists()) {
+        load(FileInputStream(keystorePropertiesFile))
+    }
+}
+
 plugins {
     id("com.android.application")
     id("com.google.gms.google-services")
@@ -20,6 +30,17 @@ android {
         jvmTarget = JavaVersion.VERSION_11.toString()
     }
 
+    signingConfigs {
+        create("release") {
+            if (keystorePropertiesFile.exists()) {
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+                storeFile = file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String
+            }
+        }
+    }
+
     defaultConfig {
         applicationId = "pl.goodloop.app"
         vectorDrawables.useSupportLibrary = true
@@ -33,7 +54,10 @@ android {
         release {
             // TODO: prawdziwy keystore. Na razie podpis kluczem debug —
             // instalowalny przez "nieznane źródła", wystarcza do testów.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (keystorePropertiesFile.exists())
+                signingConfigs.getByName("release")
+            else
+                signingConfigs.getByName("debug")
 
             // Wyłączony R8 na czas buildów testowych — flutter_local_notifications
             // 17.x wysypuje się z włączonym shrinkerem ("TypeToken must be created
