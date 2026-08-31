@@ -6,9 +6,10 @@ import 'package:goodloop/features/achievements/data/achievement_model.dart';
 import 'package:goodloop/features/home/data/task_model.dart';
 import 'package:goodloop/features/achievements/providers/achievement_provider.dart';
 import 'package:goodloop/features/friends/providers/friends_providers.dart';
-import '../../../core/constants/app_colors.dart';
+import 'package:goodloop/core/update/update_prompt.dart';
+import 'package:goodloop/core/constants/app_colors.dart';
 import 'package:goodloop/features/auth/providers/auth_provider.dart';
-import '../providers/task_provider.dart';
+import 'package:goodloop/features/home/providers/task_provider.dart';
 import 'package:goodloop/core/widgets/custom_button.dart';
 import 'widgets/task_card.dart';
 import 'widgets/progress_indicator.dart';
@@ -31,6 +32,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     _confettiController = ConfettiController(
       duration: const Duration(seconds: 3),
     );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) runUpdateCheck(context, ref);
+    });
   }
 
   @override
@@ -289,7 +293,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             // ✅ Jeśli lista jest pusta (po odfiltrowaniu zrobionych),
                             // oznacza to, że użytkownik wykonał już wszystko.
                             if (tasks.isEmpty) {
-                              return _buildCompletedView(context);
+                              return user.taskCompletedToday
+                                  ? _buildCompletedView(context)
+                                  : const Center(
+                                      child: Padding(
+                                      padding: EdgeInsets.all(24),
+                                      child: Text(
+                                          'Brak nowych zadań na dziś. Zajrzyj jutro!',
+                                          textAlign: TextAlign.center),
+                                    ));
                             }
 
                             // Pobieramy pierwsze dostępne zadanie

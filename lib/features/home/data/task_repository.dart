@@ -61,8 +61,8 @@ class TaskRepository {
   /// Firestore-free, żeby dało się testować jednostkowo.
   static int nextStreak(int current, DateTime? lastCompletedAt, DateTime now) {
     if (lastCompletedAt == null) return 1;
-    final last =
-        DateTime(lastCompletedAt.year, lastCompletedAt.month, lastCompletedAt.day);
+    final last = DateTime(
+        lastCompletedAt.year, lastCompletedAt.month, lastCompletedAt.day);
     final today = DateTime(now.year, now.month, now.day);
     final days = today.difference(last).inDays;
     if (days <= 0) return current < 1 ? 1 : current;
@@ -82,14 +82,19 @@ class TaskRepository {
         final snap = await tx.get(userRef);
         final data = snap.data() ?? <String, dynamic>{};
 
-        final completedIds =
-            (data['completedTaskIds'] as List?)?.cast<String>() ?? const [];
-        if (completedIds.contains(taskId)) return; // już zaliczone — no-op
-
-        final currentStreak = (data['streakDays'] as num?)?.toInt() ?? 0;
+        // "Już zaliczone" liczymy per dzień, nie raz na zawsze — inaczej po
+        // przejściu całego katalogu global_tasks nie da się nic zaliczyć.
         final lastDate =
             (data['lastTaskCompletedDate'] as Timestamp?)?.toDate();
-        final newStreak = nextStreak(currentStreak, lastDate, DateTime.now());
+        final now = DateTime.now();
+        final alreadyToday = lastDate != null &&
+            lastDate.year == now.year &&
+            lastDate.month == now.month &&
+            lastDate.day == now.day;
+        if (alreadyToday) return; // dziś już zaliczone — no-op
+
+        final currentStreak = (data['streakDays'] as num?)?.toInt() ?? 0;
+        final newStreak = nextStreak(currentStreak, lastDate, now);
 
         final newPoints =
             ((data['totalPoints'] as num?)?.toInt() ?? 0) + points;

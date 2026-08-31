@@ -13,18 +13,26 @@ final activeTasksProvider = StreamProvider<List<TaskModel>>((ref) {
 
   return userAsync.when(
     data: (user) {
-      if (user == null) return Stream.value([]);
+      if (user == null) return Stream.value(<TaskModel>[]);
 
       return taskRepo.getGlobalDailyTasks().map((allTasks) {
-        final completedIds = user.completedTaskIds;
+        // Jedno zadanie dziennie: jeśli user już dziś coś zaliczył → nic do roboty.
+        // Wczorajsze wpisy w completedTaskIds nie mają znaczenia.
+        if (user.taskCompletedToday) return <TaskModel>[];
+        if (allTasks.isEmpty) return <TaskModel>[];
 
-        return allTasks.where((task) {
-          return !completedIds.contains(task.id);
-        }).toList();
+        // Zadanie dnia rotuje po katalogu wg daty — nie wyczerpuje się po
+        // przejściu wszystkich global_tasks kiedyś wcześniej.
+        allTasks.sort((a, b) => a.id.compareTo(b.id));
+        final now = DateTime.now();
+        final epochDay = DateTime(now.year, now.month, now.day)
+            .difference(DateTime(2024, 1, 1))
+            .inDays;
+        return [allTasks[epochDay % allTasks.length]];
       });
     },
-    loading: () => Stream.value([]),
-    error: (_, __) => Stream.value([]),
+    loading: () => Stream.value(<TaskModel>[]),
+    error: (_, __) => Stream.value(<TaskModel>[]),
   );
 });
 
