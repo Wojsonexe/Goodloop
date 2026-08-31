@@ -1,5 +1,5 @@
 import 'dart:io' show Platform;
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, kReleaseMode;
 
 /// Adres backendu (REST + WebSocket czatu).
 ///
@@ -13,12 +13,17 @@ class ApiConfig {
   static const String _lanHost = '10.10.10.108';
   static const int _port = 3000;
 
+  /// Backend produkcyjny (Railway) — buildy release.
+  static const String _prodBaseUrl =
+      'https://goodloop-api-production.up.railway.app';
+
   static String get baseUrl {
     const override = String.fromEnvironment('API_URL');
     return override.isEmpty ? _defaultBaseUrl() : override;
   }
 
   static String _defaultBaseUrl() {
+    if (kReleaseMode) return _prodBaseUrl;
     if (kIsWeb) return 'http://localhost:$_port';
     if (Platform.isAndroid) {
       // Emulator: użyj --dart-define=API_URL=http://10.0.2.2:$_port

@@ -9,6 +9,7 @@
          explanation dialog in settings_screen.dart. -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"
         android:maxSdkVersion="32"/>
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
     <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>
     <!-- Lets flutter_local_notifications re-register the scheduled reminder
          after a device reboot (its ScheduledNotificationBootReceiver). -->
@@ -61,7 +62,7 @@
          https://developer.android.com/reference/android/content/Intent#ACTION_PROCESS_TEXT.
 
          In particular, this is used by the Flutter engine in io.flutter.plugin.text.ProcessTextPlugin. -->
-    <queries>
+        <queries>
         <package android:name="com.miui.securitycenter"/>
         <package android:name="com.coloros.safecenter"/>
         <package android:name="com.oppo.safe"/>
@@ -71,6 +72,10 @@
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:mimeType="application/vnd.android.package-archive"/>
         </intent>
     </queries>
 </manifest>

@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:goodloop/core/constants/app_colors.dart';
 import 'package:goodloop/core/constants/storage_keys.dart';
 import 'package:goodloop/core/notifications/notification_service.dart';
+import 'package:goodloop/core/update/update_prompt.dart';
 import 'package:goodloop/features/auth/providers/auth_provider.dart';
 import 'package:goodloop/features/settings/providers/theme_provider.dart';
 import 'package:goodloop/core/notifications/oem_battery_helper.dart';
@@ -572,6 +573,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
             ]),
           ],
+          const SizedBox(height: 24),
+          _section('Aplikacja', [
+            ListTile(
+              leading: const Icon(Icons.system_update),
+              title: const Text('Sprawdź aktualizacje'),
+              subtitle:
+                  Text(_appVersion.isEmpty ? 'GitHub Releases' : _appVersion),
+              onTap: () => runUpdateCheck(context, ref, manual: true),
+            ),
+          ]),
           const SizedBox(height: 32),
           Center(
             child: Text(
