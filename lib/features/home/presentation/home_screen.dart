@@ -11,6 +11,7 @@ import 'package:goodloop/core/constants/app_colors.dart';
 import 'package:goodloop/features/auth/providers/auth_provider.dart';
 import 'package:goodloop/features/home/providers/task_provider.dart';
 import 'package:goodloop/core/widgets/custom_button.dart';
+import 'package:goodloop/shared/user_avatar.dart';
 import 'widgets/task_card.dart';
 import 'widgets/progress_indicator.dart';
 import 'widgets/streak_badge.dart';
@@ -217,17 +218,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             ],
                           ),
                           GestureDetector(
-                            onTap: () => context.push('/settings'),
-                            child: CircleAvatar(
-                              radius: 28,
-                              backgroundImage: user.photoUrl != null
-                                  ? NetworkImage(user.photoUrl!)
-                                  : null,
-                              child: user.photoUrl == null
-                                  ? const Icon(Icons.person)
-                                  : null,
-                            ),
-                          ),
+                              onTap: () => context.push('/profile'),
+                              child: UserAvatar(
+                                photoUrl: user.photoUrl,
+                                radius: 28,
+                              )),
                         ],
                       ),
                     ),
