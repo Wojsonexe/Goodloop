@@ -52,8 +52,6 @@ android {
 
     buildTypes {
         release {
-            // TODO: prawdziwy keystore. Na razie podpis kluczem debug —
-            // instalowalny przez "nieznane źródła", wystarcza do testów.
             signingConfig = if (keystorePropertiesFile.exists())
                 signingConfigs.getByName("release")
             else
