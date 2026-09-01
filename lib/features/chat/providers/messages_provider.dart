@@ -22,7 +22,7 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
     });
     _readSub = socket.onMessageRead.listen((e) {
       if (e.conversationId != conversationId) return;
-      final cur = state.value ?? const <ChatMessage>[];
+      final cur = state.valueOrNull ?? const <ChatMessage>[];
       state = AsyncValue.data([
         for (final m in cur) m.senderId == _me ? m.copyWith(seen: true) : m,
       ]);
@@ -62,7 +62,7 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
       clientId: clientId,
       pending: true,
     );
-    state = AsyncValue.data([...(state.value ?? const []), optimistic]);
+    state = AsyncValue.data([...(state.valueOrNull ?? const []), optimistic]);
     try {
       final saved = await ref
           .read(chatSocketProvider)
@@ -75,7 +75,7 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
   }
 
   void retry(ChatMessage failed) {
-    final cur = state.value ?? const <ChatMessage>[];
+    final cur = state.valueOrNull ?? const <ChatMessage>[];
     state = AsyncValue.data(cur.where((m) => m.id != failed.id).toList());
     send(failed.text);
   }
@@ -88,7 +88,7 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
   }
 
   void _merge(ChatMessage m) {
-    final cur = state.value ?? const <ChatMessage>[];
+    final cur = state.valueOrNull ?? const <ChatMessage>[];
     if (cur.any((x) => x.id == m.id)) return;
     if (m.senderId == _me &&
         m.clientId != null &&
@@ -101,7 +101,7 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
   }
 
   void _replace(String clientId, ChatMessage msg) {
-    final cur = state.value ?? const <ChatMessage>[];
+    final cur = state.valueOrNull ?? const <ChatMessage>[];
     state = AsyncValue.data(
         [for (final m in cur) m.clientId == clientId ? msg : m]);
   }

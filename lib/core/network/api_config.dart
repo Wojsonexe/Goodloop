@@ -36,9 +36,9 @@ class ApiConfig {
   }
 
   static String get webSocketUrl {
-    const override = String.fromEnvironment('WEBSOCKET_URL');
-    if (override.isNotEmpty) return override;
-    return '${baseUrl.replaceFirst(RegExp(r'^http'), 'ws')}/chat';
+    // socket_io_client sam negocjuje upgrade do WS — podajemy http(s),
+    // NIE ws(s): Uri.parse('wss://host').port == 0 w Dart → łączy się z :0.
+    return '$baseUrl/chat';
   }
 
   static String get apiPath => '$baseUrl/api/v1';

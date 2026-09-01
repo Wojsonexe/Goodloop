@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:goodloop/features/chat/providers/chat_providers.dart';
 import 'core/constants/app_theme.dart';
 import 'core/lifecycle/app_lifecycle_provider.dart';
 import 'core/notifications/notification_service.dart';
@@ -22,6 +23,8 @@ class GoodLoopApp extends ConsumerWidget {
         ref.read(notificationServiceProvider).rearmIfEnabled();
       }
     });
+
+    ref.watch(chatConnectionProvider);
 
     return MaterialApp.router(
       title: 'GoodLoop',

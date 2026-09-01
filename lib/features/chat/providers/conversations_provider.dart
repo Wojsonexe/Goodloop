@@ -47,7 +47,7 @@ class ConversationsNotifier
   }
 
   void _upsert(Conversation c) {
-    final cur = state.value ?? const <Conversation>[];
+    final cur = state.valueOrNull ?? const <Conversation>[];
     final next = [c, ...cur.where((x) => x.id != c.id)]
       ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
     state = AsyncValue.data(next);
@@ -62,7 +62,7 @@ class ConversationsNotifier
 
   /// Lokalne zerowanie licznika po wejściu w rozmowę (serwer i tak przyśle update).
   void markReadLocal(String conversationId) {
-    final cur = state.value;
+    final cur = state.valueOrNull;
     if (cur == null) return;
     state = AsyncValue.data([
       for (final c in cur) c.id == conversationId ? _copyUnread(c, 0) : c,

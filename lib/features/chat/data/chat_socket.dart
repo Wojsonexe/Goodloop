@@ -85,13 +85,10 @@ class ChatSocket {
     _socket?.emit('auth:refresh', {'token': token});
   }
 
-  Future<T> _ack<T>(
-      String event, Map<String, dynamic> payload, T Function(dynamic) parse) {
-    final s = _socket;
-    if (s == null || !s.connected) {
-      return Future.error(
-          AckException('NO_CONNECTION', 'Brak połączenia z czatem'));
-    }
+  Future<T> _ack<T>(String event, Map<String, dynamic> payload,
+      T Function(dynamic) parse) async {
+    await _ensureConnected();
+    final s = _socket!;
     final c = Completer<T>();
     s.emitWithAck(event, payload, ack: (res) {
       if (c.isCompleted) return;
@@ -130,6 +127,18 @@ class ChatSocket {
             'clientId': clientId
           },
           (d) => ChatMessage.fromJson(_m(d)));
+
+  Future<void> _ensureConnected() async {
+    if (_socket?.connected ?? false) return;
+    if (_socket == null) {
+      throw AckException('NO_CONNECTION', 'Czat nie został zainicjalizowany');
+    }
+    await connectionState.firstWhere((c) => c).timeout(
+          const Duration(seconds: 8),
+          onTimeout: () =>
+              throw AckException('NO_CONNECTION', 'Brak połączenia z czatem'),
+        );
+  }
 
   Future<List<ChatMessage>> listMessages(String conversationId,
           {int limit = 50}) =>
