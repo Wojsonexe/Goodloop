@@ -21,10 +21,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _scroll = ScrollController();
 
   @override
+  void initState() {
+    super.initState();
+    _scroll.addListener(_onScroll);
+  }
+
+  @override
   void dispose() {
+    _scroll.removeListener(_onScroll);
     _input.dispose();
     _scroll.dispose();
     super.dispose();
+  }
+
+  void _onScroll() {
+    if (!_scroll.hasClients) return;
+    final pos = _scroll.position;
+    // reverse:true → starsze wiadomości są w stronę maxScrollExtent.
+    if (pos.pixels >= pos.maxScrollExtent - 400) {
+      ref.read(messagesProvider(widget.conversationId).notifier).loadMore();
+    }
   }
 
   Future<void> _send() async {
@@ -47,7 +63,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   void _toBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scroll.hasClients) {
-        _scroll.animateTo(_scroll.position.maxScrollExtent,
+        _scroll.animateTo(0,
             duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
       }
     });
@@ -61,8 +77,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final conv = ref.watch(conversationByIdProvider(id));
     final other = conv?.other(me);
     final typing = ref.watch(typingProvider(id));
-
-    ref.listen(messagesProvider(id), (_, __) => _toBottom());
 
     return Scaffold(
       appBar: AppBar(
@@ -78,20 +92,37 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         children: [
           Expanded(
             child: msgsAsync.when(
-              data: (msgs) => ListView.builder(
-                controller: _scroll,
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                itemCount: msgs.length,
-                itemBuilder: (_, i) {
-                  final m = msgs[i];
-                  return MessageBubble(
-                    message: m,
-                    isMine: m.senderId == me,
-                    onRetry: () =>
-                        ref.read(messagesProvider(id).notifier).retry(m),
-                  );
-                },
-              ),
+              data: (s) {
+                final msgs = s.items;
+                final showSpinner = s.hasMore || s.loadingMore;
+                return ListView.builder(
+                  controller: _scroll,
+                  reverse: true,
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  itemCount: msgs.length + (showSpinner ? 1 : 0),
+                  itemBuilder: (_, i) {
+                    if (i >= msgs.length) {
+                      return const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: Center(
+                          child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        ),
+                      );
+                    }
+                    final m = msgs[msgs.length - 1 - i];
+                    return MessageBubble(
+                      message: m,
+                      isMine: m.senderId == me,
+                      onRetry: () =>
+                          ref.read(messagesProvider(id).notifier).retry(m),
+                    );
+                  },
+                );
+              },
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (e, _) => Center(child: Text('Błąd: $e')),
             ),
