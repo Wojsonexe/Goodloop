@@ -141,8 +141,14 @@ class ChatSocket {
   }
 
   Future<List<ChatMessage>> listMessages(String conversationId,
-          {int limit = 50}) =>
-      _ack('message:list', {'conversationId': conversationId, 'limit': limit},
+          {int limit = 30, DateTime? before}) =>
+      _ack(
+          'message:list',
+          {
+            'conversationId': conversationId,
+            'limit': limit,
+            if (before != null) 'before': before.toIso8601String(),
+          },
           (d) => (d as List).map((e) => ChatMessage.fromJson(_m(e))).toList());
 
   Future<void> markRead(String conversationId) =>
