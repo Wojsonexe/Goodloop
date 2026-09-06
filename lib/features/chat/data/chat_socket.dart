@@ -1,8 +1,8 @@
 import 'dart:async';
 
-import 'package:socket_io_client/socket_io_client.dart' as io;
 import 'package:goodloop/core/network/api_config.dart';
 import 'package:goodloop/core/utils/logger.dart';
+import 'package:socket_io_client/socket_io_client.dart' as io;
 
 import 'chat_models.dart';
 
@@ -19,12 +19,14 @@ class ChatSocket {
 
   final _conn = StreamController<bool>.broadcast();
   final _msgNew = StreamController<ChatMessage>.broadcast();
+  final _msgUpd = StreamController<ChatMessage>.broadcast();
   final _convUpd = StreamController<Conversation>.broadcast();
   final _typing = StreamController<TypingEvent>.broadcast();
   final _read = StreamController<ReadEvent>.broadcast();
 
   Stream<bool> get connectionState => _conn.stream;
   Stream<ChatMessage> get onMessageNew => _msgNew.stream;
+  Stream<ChatMessage> get onMessageUpdated => _msgUpd.stream;
   Stream<Conversation> get onConversationUpdated => _convUpd.stream;
   Stream<TypingEvent> get onTyping => _typing.stream;
   Stream<ReadEvent> get onMessageRead => _read.stream;
@@ -63,6 +65,8 @@ class ChatSocket {
 
     s.on('message:new',
         (d) => _safe(_msgNew, () => ChatMessage.fromJson(_m(d))));
+    s.on('message:updated',
+        (d) => _safe(_msgUpd, () => ChatMessage.fromJson(_m(d))));
     s.on('conversation:updated',
         (d) => _safe(_convUpd, () => Conversation.fromJson(_m(d))));
     s.on('typing', (d) {
@@ -118,14 +122,33 @@ class ChatSocket {
       {}, (d) => (d as List).map((e) => Conversation.fromJson(_m(e))).toList());
 
   Future<ChatMessage> sendMessage(
-          String conversationId, String text, String clientId) =>
+          String conversationId, String text, String clientId,
+          {String? replyToId}) =>
       _ack(
           'message:send',
           {
             'conversationId': conversationId,
             'text': text,
-            'clientId': clientId
+            'clientId': clientId,
+            if (replyToId != null) 'replyToId': replyToId,
           },
+          (d) => ChatMessage.fromJson(_m(d)));
+
+  Future<ChatMessage> editMessage(
+          String conversationId, String messageId, String text) =>
+      _ack(
+          'message:edit',
+          {
+            'conversationId': conversationId,
+            'messageId': messageId,
+            'text': text
+          },
+          (d) => ChatMessage.fromJson(_m(d)));
+
+  Future<ChatMessage> deleteMessage(String conversationId, String messageId) =>
+      _ack(
+          'message:delete',
+          {'conversationId': conversationId, 'messageId': messageId},
           (d) => ChatMessage.fromJson(_m(d)));
 
   Future<void> _ensureConnected() async {
@@ -167,6 +190,7 @@ class ChatSocket {
     disconnect();
     _conn.close();
     _msgNew.close();
+    _msgUpd.close();
     _convUpd.close();
     _typing.close();
     _read.close();
