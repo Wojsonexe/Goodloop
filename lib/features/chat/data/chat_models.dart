@@ -9,6 +9,23 @@ class MemberInfo {
       );
 }
 
+class ReplyPreview {
+  final String id;
+  final String senderId;
+  final String text;
+  const ReplyPreview({
+    required this.id,
+    required this.senderId,
+    required this.text,
+  });
+
+  factory ReplyPreview.fromJson(Map<String, dynamic> j) => ReplyPreview(
+        id: j['id'] as String? ?? '',
+        senderId: j['senderId'] as String? ?? '',
+        text: j['text'] as String? ?? '',
+      );
+}
+
 class ChatMessage {
   final String id;
   final String conversationId;
@@ -17,6 +34,9 @@ class ChatMessage {
   final DateTime createdAt;
   final bool seen;
   final String? clientId;
+  final DateTime? editedAt;
+  final DateTime? deletedAt;
+  final ReplyPreview? replyTo;
   final bool pending; // lokalne — optimistic UI
   final bool failed; // lokalne
 
@@ -28,9 +48,15 @@ class ChatMessage {
     required this.createdAt,
     this.seen = false,
     this.clientId,
+    this.editedAt,
+    this.deletedAt,
+    this.replyTo,
     this.pending = false,
     this.failed = false,
   });
+
+  bool get isDeleted => deletedAt != null;
+  bool get isEdited => editedAt != null;
 
   factory ChatMessage.fromJson(Map<String, dynamic> j) => ChatMessage(
         id: j['id'] as String,
@@ -42,17 +68,36 @@ class ChatMessage {
                 DateTime.now(),
         seen: j['seen'] as bool? ?? false,
         clientId: j['clientId'] as String?,
+        editedAt: DateTime.tryParse(j['editedAt'] as String? ?? '')?.toLocal(),
+        deletedAt:
+            DateTime.tryParse(j['deletedAt'] as String? ?? '')?.toLocal(),
+        replyTo: j['replyTo'] is Map
+            ? ReplyPreview.fromJson(
+                (j['replyTo'] as Map).cast<String, dynamic>())
+            : null,
       );
 
-  ChatMessage copyWith({String? id, bool? seen, bool? pending, bool? failed}) =>
+  ChatMessage copyWith({
+    String? id,
+    String? text,
+    bool? seen,
+    bool? pending,
+    bool? failed,
+    DateTime? editedAt,
+    DateTime? deletedAt,
+    ReplyPreview? replyTo,
+  }) =>
       ChatMessage(
         id: id ?? this.id,
         conversationId: conversationId,
         senderId: senderId,
-        text: text,
+        text: text ?? this.text,
         createdAt: createdAt,
         seen: seen ?? this.seen,
         clientId: clientId,
+        editedAt: editedAt ?? this.editedAt,
+        deletedAt: deletedAt ?? this.deletedAt,
+        replyTo: replyTo ?? this.replyTo,
         pending: pending ?? this.pending,
         failed: failed ?? this.failed,
       );

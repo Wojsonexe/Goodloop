@@ -46,6 +46,9 @@ class MessagesNotifier extends StateNotifier<AsyncValue<MessagesState>> {
             for (final m in cur) m.senderId == _me ? m.copyWith(seen: true) : m,
           ]);
     });
+    _updSub = socket.onMessageUpdated.listen((m) {
+      if (m.conversationId == conversationId) _applyUpdate(m);
+    });
     load();
   }
   final Ref ref;
@@ -54,6 +57,7 @@ class MessagesNotifier extends StateNotifier<AsyncValue<MessagesState>> {
   static const _pageSize = 30;
   StreamSubscription<ChatMessage>? _msgSub;
   StreamSubscription<ReadEvent>? _readSub;
+  StreamSubscription<ChatMessage>? _updSub;
   Timer? _typingStop;
 
   String get _me => ref.read(authStateProvider).value?.uid ?? '';
@@ -102,10 +106,25 @@ class MessagesNotifier extends StateNotifier<AsyncValue<MessagesState>> {
     }
   }
 
-  Future<void> send(String text) async {
+  Future<void> send(String text, {String? replyToId}) async {
     final trimmed = text.trim();
     if (trimmed.isEmpty) return;
     final clientId = _uuid.v4();
+
+    ReplyPreview? preview;
+    if (replyToId != null) {
+      for (final m in _items) {
+        if (m.id == replyToId) {
+          preview = ReplyPreview(
+            id: m.id,
+            senderId: m.senderId,
+            text: m.isDeleted ? '' : m.text,
+          );
+          break;
+        }
+      }
+    }
+
     final optimistic = ChatMessage(
       id: clientId,
       conversationId: conversationId,
@@ -113,13 +132,14 @@ class MessagesNotifier extends StateNotifier<AsyncValue<MessagesState>> {
       text: trimmed,
       createdAt: DateTime.now(),
       clientId: clientId,
+      replyTo: preview,
       pending: true,
     );
     _patch((cur) => [...cur, optimistic]);
     try {
       final saved = await ref
           .read(chatSocketProvider)
-          .sendMessage(conversationId, trimmed, clientId);
+          .sendMessage(conversationId, trimmed, clientId, replyToId: replyToId);
       _replace(clientId, saved);
     } catch (e) {
       _replace(clientId, optimistic.copyWith(pending: false, failed: true));
@@ -127,9 +147,25 @@ class MessagesNotifier extends StateNotifier<AsyncValue<MessagesState>> {
     }
   }
 
+  Future<void> editMessage(String messageId, String text) async {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return;
+    final updated = await ref
+        .read(chatSocketProvider)
+        .editMessage(conversationId, messageId, trimmed);
+    _applyUpdate(updated);
+  }
+
+  Future<void> deleteMessage(String messageId) async {
+    final updated = await ref
+        .read(chatSocketProvider)
+        .deleteMessage(conversationId, messageId);
+    _applyUpdate(updated);
+  }
+
   void retry(ChatMessage failed) {
     _patch((cur) => cur.where((m) => m.id != failed.id).toList());
-    send(failed.text);
+    send(failed.text, replyToId: failed.replyTo?.id);
   }
 
   void onInputChanged() {
@@ -156,6 +192,10 @@ class MessagesNotifier extends StateNotifier<AsyncValue<MessagesState>> {
     _patch((cur) => [for (final m in cur) m.clientId == clientId ? msg : m]);
   }
 
+  void _applyUpdate(ChatMessage m) {
+    _patch((cur) => [for (final x in cur) x.id == m.id ? m : x]);
+  }
+
   void _markRead() {
     ref.read(chatSocketProvider).markRead(conversationId).catchError((_) {});
     ref.read(conversationsProvider.notifier).markReadLocal(conversationId);
@@ -165,6 +205,7 @@ class MessagesNotifier extends StateNotifier<AsyncValue<MessagesState>> {
   void dispose() {
     _msgSub?.cancel();
     _readSub?.cancel();
+    _updSub?.cancel();
     _typingStop?.cancel();
     super.dispose();
   }

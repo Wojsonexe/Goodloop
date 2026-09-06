@@ -21,7 +21,7 @@ class ConversationTile extends ConsumerWidget {
       title: Text(other?.displayName ?? 'Użytkownik',
           maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: Text(
-        conversation.lastText ?? 'Rozpocznij rozmowę',
+        _subtitle(),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: TextStyle(
@@ -55,5 +55,13 @@ class ConversationTile extends ConsumerWidget {
       return '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
     }
     return '${d.day}.${d.month}';
+  }
+
+  String _subtitle() {
+    final t = conversation.lastText;
+    if (conversation.lastAt != null && (t == null || t.isEmpty)) {
+      return 'Wiadomość usunięta';
+    }
+    return (t != null && t.isNotEmpty) ? t : 'Rozpocznij rozmowę';
   }
 }
