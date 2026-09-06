@@ -8,12 +8,32 @@ import '../data/chat_models.dart';
 import 'chat_providers.dart';
 import 'conversations_provider.dart';
 
+/// Stan ekranu rozmowy: lista wiadomości + flagi paginacji wstecz.
+class MessagesState {
+  final List<ChatMessage> items;
+  final bool hasMore;
+  final bool loadingMore;
+  const MessagesState(this.items,
+      {this.hasMore = false, this.loadingMore = false});
+
+  MessagesState copyWith({
+    List<ChatMessage>? items,
+    bool? hasMore,
+    bool? loadingMore,
+  }) =>
+      MessagesState(
+        items ?? this.items,
+        hasMore: hasMore ?? this.hasMore,
+        loadingMore: loadingMore ?? this.loadingMore,
+      );
+}
+
 final messagesProvider = StateNotifierProvider.family<MessagesNotifier,
-    AsyncValue<List<ChatMessage>>, String>(
+    AsyncValue<MessagesState>, String>(
   (ref, conversationId) => MessagesNotifier(ref, conversationId),
 );
 
-class MessagesNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
+class MessagesNotifier extends StateNotifier<AsyncValue<MessagesState>> {
   MessagesNotifier(this.ref, this.conversationId)
       : super(const AsyncValue.loading()) {
     final socket = ref.read(chatSocketProvider);
@@ -22,30 +42,63 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
     });
     _readSub = socket.onMessageRead.listen((e) {
       if (e.conversationId != conversationId) return;
-      final cur = state.valueOrNull ?? const <ChatMessage>[];
-      state = AsyncValue.data([
-        for (final m in cur) m.senderId == _me ? m.copyWith(seen: true) : m,
-      ]);
+      _patch((cur) => [
+            for (final m in cur) m.senderId == _me ? m.copyWith(seen: true) : m,
+          ]);
     });
     load();
   }
   final Ref ref;
   final String conversationId;
   final _uuid = const Uuid();
+  static const _pageSize = 30;
   StreamSubscription<ChatMessage>? _msgSub;
   StreamSubscription<ReadEvent>? _readSub;
   Timer? _typingStop;
 
   String get _me => ref.read(authStateProvider).value?.uid ?? '';
 
+  List<ChatMessage> get _items => state.valueOrNull?.items ?? const [];
+
+  void _patch(List<ChatMessage> Function(List<ChatMessage>) fn) {
+    final cur = state.valueOrNull ?? const MessagesState([]);
+    state = AsyncValue.data(cur.copyWith(items: fn(cur.items)));
+  }
+
   Future<void> load() async {
     try {
-      final msgs =
-          await ref.read(chatSocketProvider).listMessages(conversationId);
-      state = AsyncValue.data(msgs);
+      final msgs = await ref
+          .read(chatSocketProvider)
+          .listMessages(conversationId, limit: _pageSize);
+      state = AsyncValue.data(
+          MessagesState(msgs, hasMore: msgs.length >= _pageSize));
       _markRead();
     } catch (e, st) {
       state = AsyncValue.error(e, st);
+    }
+  }
+
+  /// Doładowanie starszych wiadomości (scroll w górę).
+  Future<void> loadMore() async {
+    final cur = state.valueOrNull;
+    if (cur == null || cur.loadingMore || !cur.hasMore || cur.items.isEmpty) {
+      return;
+    }
+    state = AsyncValue.data(cur.copyWith(loadingMore: true));
+    try {
+      final older = await ref.read(chatSocketProvider).listMessages(
+            conversationId,
+            limit: _pageSize,
+            before: cur.items.first.createdAt,
+          );
+      final known = cur.items.map((m) => m.id).toSet();
+      state = AsyncValue.data(MessagesState(
+        [...older.where((m) => !known.contains(m.id)), ...cur.items],
+        hasMore: older.length >= _pageSize,
+        loadingMore: false,
+      ));
+    } catch (_) {
+      state = AsyncValue.data(cur.copyWith(loadingMore: false));
     }
   }
 
@@ -62,7 +115,7 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
       clientId: clientId,
       pending: true,
     );
-    state = AsyncValue.data([...(state.valueOrNull ?? const []), optimistic]);
+    _patch((cur) => [...cur, optimistic]);
     try {
       final saved = await ref
           .read(chatSocketProvider)
@@ -75,8 +128,7 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
   }
 
   void retry(ChatMessage failed) {
-    final cur = state.valueOrNull ?? const <ChatMessage>[];
-    state = AsyncValue.data(cur.where((m) => m.id != failed.id).toList());
+    _patch((cur) => cur.where((m) => m.id != failed.id).toList());
     send(failed.text);
   }
 
@@ -88,7 +140,7 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
   }
 
   void _merge(ChatMessage m) {
-    final cur = state.valueOrNull ?? const <ChatMessage>[];
+    final cur = _items;
     if (cur.any((x) => x.id == m.id)) return;
     if (m.senderId == _me &&
         m.clientId != null &&
@@ -96,14 +148,12 @@ class MessagesNotifier extends StateNotifier<AsyncValue<List<ChatMessage>>> {
       _replace(m.clientId!, m);
       return;
     }
-    state = AsyncValue.data([...cur, m]);
+    _patch((c) => [...c, m]);
     if (m.senderId != _me) _markRead();
   }
 
   void _replace(String clientId, ChatMessage msg) {
-    final cur = state.valueOrNull ?? const <ChatMessage>[];
-    state = AsyncValue.data(
-        [for (final m in cur) m.clientId == clientId ? msg : m]);
+    _patch((cur) => [for (final m in cur) m.clientId == clientId ? msg : m]);
   }
 
   void _markRead() {
